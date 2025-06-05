@@ -1,0 +1,1 @@
+DOMAIN = "somfy_shades"

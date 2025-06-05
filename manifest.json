@@ -1,0 +1,9 @@
+{
+  "domain": "somfy_shades",
+  "name": "Somfy Shades",
+  "version": "1.0.0",
+  "config_flow": true,
+  "requirements": [],
+  "dependencies": [],
+  "codeowners": ["laertesousa"]
+}
