@@ -9,8 +9,21 @@ from .somfy.dtos.somfy_objects import Direction
 logger = logging.getLogger(__name__)
 
 async def async_setup_entry(hass, entry, async_add_entities):
+    entry_id = entry.entry_id
     data = hass.data[DOMAIN][entry.entry_id]
-    client = SomfyPoeBlindClient(data["name"], data["ip"], data["pin"])
+    def on_failure(e):
+        logger.error('Somfy callback error: %s', e)
+        hass.async_create_task(
+            hass.config_entries.async_reload(entry_id)
+        )
+
+    client = SomfyPoeBlindClient(data["name"], data["ip"], data["pin"], on_failure)
+    await hass.async_add_executor_job(client.login)
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
+        "client": client,
+        "config": data
+    }
+
     async_add_entities([SomfyCover(data, client)])
 
 class SomfyCover(CoverEntity):

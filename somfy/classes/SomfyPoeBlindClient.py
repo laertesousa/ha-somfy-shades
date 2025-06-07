@@ -13,11 +13,12 @@ SOMFY_MAC_PREFIXES = [
 ]
 
 class SomfyPoeBlindClient:
-    def __init__(self, name, ip, password):
+    def __init__(self, name, ip, password, on_failure):
         self.session = None
         self.name = name
         self.ip = ip
         self.password = password
+        self.on_failure = on_failure
 
     @staticmethod
     def _get_log_prefix(instance=None):
@@ -39,6 +40,7 @@ class SomfyPoeBlindClient:
             logger.info("%s Response: %s", self._get_log_prefix(self), login_response.text)
             return
 
+        logger.info("Cookies: %s", self.session.cookies)
         logger.info("%s Authenticated. Session ID: %s", self._get_log_prefix(self), self.session.cookies["sessionId"])
 
     @property
@@ -64,8 +66,9 @@ class SomfyPoeBlindClient:
         return response.status_code == 200 and 'SOMFY PoE WebGUI' in response.text
 
     def send_command(self, command, priority=0, position=None):
-        if not self.is_logged_in:
-            self.login()
+        logger.info("Session: %s", self.session)
+        if self.session is not None:
+            logger.info("Cookies: %s", self.session.cookies)
 
         params = {"priority": priority}
         if position is not None:
@@ -76,16 +79,16 @@ class SomfyPoeBlindClient:
             "params": params,
             "id": 1
         }
-        response = self.session.post(
-            f"https://{self.ip}/req",
-            headers={"Content-Type": "application/json"},
-            json=command_payload,
-            verify=False
-        )
-
-        if response.status_code != 200 and self.is_logged_in:
-            self.session = None
-            self.send_command(command, priority=priority, position=position)
+        try:
+            response = self.session.post(
+                f"https://{self.ip}/req",
+                headers={"Content-Type": "application/json"},
+                json=command_payload,
+                verify=False
+            )
+        except Exception as e:
+            self.on_failure(e)
+            return None
 
         return response.json()
 
