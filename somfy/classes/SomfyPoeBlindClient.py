@@ -1,16 +1,23 @@
 import ipaddress
 import logging
 import socket
+import urllib3
 from typing import List
+from enum import Enum
 
 from ..dtos.somfy_objects import Status, Direction, Device
 from ..utils.session import get_legacy_session
 
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 logger = logging.getLogger(__name__)
 
 SOMFY_MAC_PREFIXES = [
     "4C:C2:06",
 ]
+
+class LimitSetting(Enum):
+    up = 'up'
+    down = 'down'
 
 class SomfyPoeBlindClient:
     def __init__(self, name, ip, password, on_failure):
@@ -61,13 +68,29 @@ class SomfyPoeBlindClient:
 
         return response.status_code == 200 and 'SOMFY PoE WebGUI' in response.text
 
-    def send_command(self, command, priority=0, position=None):
+    def send_command(
+        self, 
+        command, 
+        priority=None, position=None, direction=None, duration=None, end_limit: str = None, mode: str = None, wink: bool = None
+    ):
         logger.info("%s start command: %s", self._get_log_prefix(self), command)
         logger.debug("%s send_command - Session:", self._get_log_prefix(self), command)
 
-        params = {"priority": priority}
+        params = {}
+        if priority is not None:
+            params["priority"] = priority
         if position is not None:
             params["position"] = position
+        if direction is not None:
+            params["direction"] = direction
+        if duration is not None:
+            params["duration"] = duration
+        if end_limit is not None:
+            params["endLimit"] = end_limit
+        if mode is not None:
+            params["mode"] = mode
+        if wink is not None:
+            params["wink"] = wink
 
         command_payload = {
             "method": command,
@@ -102,28 +125,21 @@ class SomfyPoeBlindClient:
 
     def down(self):
         self.send_command("move.down")
-        logger.info("%s Moving Down", self._get_log_prefix(self))
 
     def up(self):
         self.send_command("move.up")
-        logger.info("%s Moving Up", self._get_log_prefix(self))
 
     def move(self, position: int):
-        logger.info("%s Moving to %s", self._get_log_prefix(self), position)
         self.send_command(f"move.to", position=position)
+
+    def move_relative(self, direction: str, duration: int)
+        self.send_command("settings.moverelative", direction=direction, duration=duration)
 
     def stop(self):
         self.send_command("move.stop")
-        logger.info("%s Stopping", self._get_log_prefix(self))
-
-    def toggle(self):
-        status = self.get_status()
-        if status.is_moving():
-            self.stop()
-        elif status.get_direction() == Direction.up:
-            self.down()
-        else:
-            self.up()
+    
+    def set_limit(self, setting: LimitSetting)
+        self.send_command("settings.endlimit", end_limit=setting, mode="atcurrentposition")
 
     @staticmethod
     def get_possible_subnet_address():

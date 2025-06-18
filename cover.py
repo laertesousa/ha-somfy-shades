@@ -1,6 +1,8 @@
 import logging
+from datetime import timedelta
 from homeassistant.components.cover import CoverEntity, CoverEntityFeature
 from homeassistant.core import callback
+from homeassistant.helpers.event import async_track_time_interval
 from .const import DOMAIN
 
 from .somfy.classes.SomfyPoeBlindClient import SomfyPoeBlindClient
@@ -11,27 +13,55 @@ logger = logging.getLogger(__name__)
 async def async_setup_entry(hass, entry, async_add_entities):
     entry_id = entry.entry_id
     data = hass.data[DOMAIN][entry.entry_id]
-    def on_failure(e):
+    async def on_failure(e):
         logger.error('Somfy callback error: %s', e)
-        hass.async_create_task(
+        await hass.async_create_task(
             hass.config_entries.async_reload(entry_id)
         )
 
     client = SomfyPoeBlindClient(data["name"], data["ip"], data["pin"], on_failure)
+    cover_entity = SomfyCover(data, client)
     await hass.async_add_executor_job(client.login)
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
         "client": client,
         "config": data
     }
+    async_add_entities([cover_entity])
 
-    async_add_entities([SomfyCover(data, client)])
+    async def periodic_refresh(now):
+        logger.info("Refreshing entity: %s", client.ip)
+        await hass.async_add_executor_job(client.login)
+        await cover_entity.async_update()
+
+    # ⏱ Set interval to 2 minutes
+    remove_listener = async_track_time_interval(hass, periodic_refresh, timedelta(minutes=1))
+    hass.data[DOMAIN][entry.entry_id]["remove_listener"] = remove_listener
+
+    return True
+
+
+# async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+#     # Attempt to unload platforms (e.g., cover)
+#     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+#     if unload_ok:
+#         # Cancel periodic task if it was registered
+#         remove_listener = hass.data[DOMAIN][entry.entry_id].get("remove_listener")
+#         if remove_listener:
+#             remove_listener()  # This cancels the timer
+
+#         # Clean up stored data
+#         hass.data[DOMAIN].pop(entry.entry_id, None)
+
+#     return unload_ok
+
 
 class SomfyCover(CoverEntity):
     supported_features = (
-            CoverEntityFeature.OPEN |
-            CoverEntityFeature.CLOSE |
-            CoverEntityFeature.STOP |
-            CoverEntityFeature.SET_POSITION
+        CoverEntityFeature.OPEN |
+        CoverEntityFeature.CLOSE |
+        CoverEntityFeature.STOP |
+        CoverEntityFeature.SET_POSITION
     )
 
     def __init__(self, data, client):
