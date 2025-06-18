@@ -103,8 +103,13 @@ class SomfyCover(CoverEntity):
         self.async_write_ha_state()
 
     async def async_update(self):
+        # await self.hass.async_add_executor_job(self._client.login)
+        logger.info("update triggered: %s:%s", self._is_closing, self._is_opening)
+        if self._is_closing is False and self._is_opening is False:
+            return
+
         status = await self.hass.async_add_executor_job(self._client.get_status)
-        logger.info(f"Shade status - {status}")
+        logger.debug(f"Shade status - {status}")
         if status is not None and status.error is None:
             # This is basic. You can refine it based on actual status/direction data
             self._position = 100 - status.position.value
@@ -116,6 +121,6 @@ class SomfyCover(CoverEntity):
 
     async def async_set_cover_position(self, **kwargs):
         """Move the cover to a specific position."""
-        logger.info(f"setting position {kwargs}")
+        logger.debug(f"setting position {kwargs}")
         position = kwargs.get("position")
         await self.hass.async_add_executor_job(self._client.move, 100 - position)

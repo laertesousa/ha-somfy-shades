@@ -43,10 +43,6 @@ class SomfyPoeBlindClient:
         logger.info("Cookies: %s", self.session.cookies)
         logger.info("%s Authenticated. Session ID: %s", self._get_log_prefix(self), self.session.cookies["sessionId"])
 
-    @property
-    def is_logged_in(self):
-        return self.session is not None
-
     @staticmethod
     def ping(ip):
         session = get_legacy_session()
@@ -66,9 +62,8 @@ class SomfyPoeBlindClient:
         return response.status_code == 200 and 'SOMFY PoE WebGUI' in response.text
 
     def send_command(self, command, priority=0, position=None):
-        logger.info("Session: %s", self.session)
-        if self.session is not None:
-            logger.info("Cookies: %s", self.session.cookies)
+        logger.info("%s start command: %s", self._get_log_prefix(self), command)
+        logger.debug("%s send_command - Session:", self._get_log_prefix(self), command)
 
         params = {"priority": priority}
         if position is not None:
@@ -87,19 +82,21 @@ class SomfyPoeBlindClient:
                 verify=False
             )
         except Exception as e:
+            logger.info("%s failed command: %s", self._get_log_prefix(self), command)
             self.on_failure(e)
             return None
+
+        logger.info("%s completed command: %s", self._get_log_prefix(self), command)
 
         return response.json()
 
     def get_status(self) -> Status:
         data = self.send_command("status.position")
-        logger.info(f"Status Response: {data}")
+        logger.debug(f"Status Response: {data}")
         status = Status.from_data(data)
-        logger.info(f"Status object: {status}")
+        logger.debug(f"Status object: {status}")
         if status.error is not None:
-            logger.debug("%s Status, %s", self._get_log_prefix(self), status)
-            logger.info("%s Current direction, %s", self._get_log_prefix(self), status.get_direction())
+            logger.warning("%s Status, %s", self._get_log_prefix(self), status)
 
         return status
 
