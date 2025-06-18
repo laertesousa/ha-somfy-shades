@@ -92,7 +92,7 @@ class SomfyPoeBlindClient:
 
     def get_status(self) -> Status:
         data = self.send_command("status.position")
-        logger.debug(f"Status Response: {data}")
+        logger.info(f"Status Response: {data}")
         status = Status.from_data(data)
         logger.debug(f"Status object: {status}")
         if status.error is not None:

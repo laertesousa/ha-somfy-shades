@@ -6,10 +6,11 @@ from .const import DOMAIN
 PLATFORMS = [Platform.COVER]
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
-    hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = entry.data
+    config = {**entry.data, **entry.options}
 
-    
+    hass.data.setdefault(DOMAIN, {})
+    hass.data[DOMAIN][entry.entry_id] = config
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     return True

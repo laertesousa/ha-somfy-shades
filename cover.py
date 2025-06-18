@@ -58,6 +58,17 @@ class SomfyCover(CoverEntity):
             "sw_version": "0.0",
             "model": "Somfy",
             "manufacturer": "Clara Shades",
+            "configuration_url": f"https://{self._ip}"
+        }
+    
+    @property
+    def extra_state_attributes(self):
+        """Return additional info about the cover."""
+        return {
+            "ip": self._ip,
+            "position_raw": self._position,
+            "is_opening": self._is_opening,
+            "is_closing": self._is_closing,
         }
 
     @property
