@@ -29,7 +29,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
     async_add_entities([cover_entity])
 
     async def periodic_refresh(now):
-        logger.info("Refreshing entity: %s", client.ip)
+        logger.info("Refreshing entity: %s - %s", client.ip, entry_id)
         await hass.async_add_executor_job(client.login)
         await cover_entity.async_update()
 
@@ -145,7 +145,7 @@ class SomfyCover(CoverEntity):
 
     async def async_update(self):
         # await self.hass.async_add_executor_job(self._client.login)
-        logger.info("update triggered: %s:%s", self._is_closing, self._is_opening)
+        logger.debug("update triggered: %s:%s", self._is_closing, self._is_opening)
         if self._is_closing is False and self._is_opening is False:
             return
 

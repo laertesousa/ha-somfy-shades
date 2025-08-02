@@ -47,8 +47,8 @@ class SomfyPoeBlindClient:
             logger.info("%s Response: %s", self._get_log_prefix(self), login_response.text)
             return
 
-        logger.info("Cookies: %s", self.session.cookies)
-        logger.info("%s Authenticated. Session ID: %s", self._get_log_prefix(self), self.session.cookies["sessionId"])
+        logger.debug("Cookies: %s", self.session.cookies)
+        logger.debug("%s Authenticated. Session ID: %s", self._get_log_prefix(self), self.session.cookies["sessionId"])
 
     @staticmethod
     def ping(ip):
@@ -73,7 +73,7 @@ class SomfyPoeBlindClient:
         command, 
         priority=None, position=None, direction=None, duration=None, end_limit: str = None, mode: str = None, wink: bool = None
     ):
-        logger.info("%s start command: %s", self._get_log_prefix(self), command)
+        logger.debug("%s start command: %s", self._get_log_prefix(self), command)
         logger.debug("%s send_command - Session:", self._get_log_prefix(self), command)
 
         params = {}
@@ -105,17 +105,17 @@ class SomfyPoeBlindClient:
                 verify=False
             )
         except Exception as e:
-            logger.info("%s failed command: %s", self._get_log_prefix(self), command)
+            logger.error("%s failed command: %s", self._get_log_prefix(self), command)
             self.on_failure(e)
             return None
 
-        logger.info("%s completed command: %s", self._get_log_prefix(self), command)
+        logger.debug("%s completed command: %s", self._get_log_prefix(self), command)
 
         return response.json()
 
     def get_status(self) -> Status:
         data = self.send_command("status.position")
-        logger.info(f"Status Response: {data}")
+        logger.debug(f"Status Response: {data}")
         status = Status.from_data(data)
         logger.debug(f"Status object: {status}")
         if status.error is not None:
@@ -124,21 +124,21 @@ class SomfyPoeBlindClient:
         return status
 
     def down(self):
-        self.send_command("move.down")
+        self.send_command("move.down", priority=0)
 
     def up(self):
-        self.send_command("move.up")
+        self.send_command("move.up", priority=0)
 
     def move(self, position: int):
-        self.send_command(f"move.to", position=position)
+        self.send_command(f"move.to", priority=1, position=position)
 
-    def move_relative(self, direction: str, duration: int)
+    def move_relative(self, direction: str, duration: int):
         self.send_command("settings.moverelative", direction=direction, duration=duration)
 
     def stop(self):
-        self.send_command("move.stop")
+        self.send_command("move.stop", priority=1)
     
-    def set_limit(self, setting: LimitSetting)
+    def set_limit(self, setting: LimitSetting):
         self.send_command("settings.endlimit", end_limit=setting, mode="atcurrentposition")
 
     @staticmethod
