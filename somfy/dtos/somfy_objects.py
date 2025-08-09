@@ -62,6 +62,10 @@ class Device:
 
     @classmethod
     def from_data(cls, data: dict):
+        name = data.get('name')
+        if name == "undefined":
+            name = None
+
         return cls(
             ip=data.get('ip'),
             mac=data.get('mac'),
@@ -69,7 +73,7 @@ class Device:
             hardware=data.get('hardware'),
             hostname=data.get('hostname'),
             model=data.get('model'),
-            name=data.get('name'),
+            name=name,
         )
 
     def to_dict(self) -> dict:

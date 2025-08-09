@@ -1,11 +1,9 @@
 import asyncio
 import logging
-from typing import Tuple, Iterator
+from typing import Tuple
 
-from anyio import sleep
 from homeassistant import config_entries
 import voluptuous as vol
-from homeassistant.components.persistent_notification import async_create
 from homeassistant.core import callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
@@ -13,7 +11,7 @@ from homeassistant.helpers.device_registry import DeviceEntry
 
 from .somfy.classes.SomfyPoeBlindClient import SomfyPoeBlindClient
 from .const import DOMAIN
-from .helpers.devices import get_devices_for_entry, get_device_by_name
+from .helpers.devices import get_devices_for_entry
 from .somfy.dtos.somfy_objects import Device
 from .somfy.classes.Scanner import Scanner
 
@@ -31,16 +29,18 @@ class SomfyIntegrationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         logger.info(f"source: {source}")
 
         if user_input is not None:
+            subnet = user_input["subnet"]
+            enable_mac_discovery = user_input["enable_mac_discovery"]
             return self.async_create_entry(
-                title=user_input["name"],
-                data={"subnet": user_input["subnet"]}
+                title=subnet,
+                data={"subnet": subnet, "enable_mac_discovery": enable_mac_discovery}
             )
 
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema({
-                vol.Required("name"): str,
-                vol.Optional("subnet", default="10.0.7.0/24"): str
+                vol.Required("subnet", default="10.0.7.0/24"): str,
+                vol.Optional("enable_mac_discovery", default=True): bool
             })
         )
 
@@ -50,10 +50,15 @@ class SomfyIntegrationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 class DeviceOptionsFlowHandler(config_entries.OptionsFlow):
     discovery_task = None
-    discovered_devices = None
+    discovered_devices = {}
+    scanner = None
 
     def __init__(self, config_entry):
         self.devices = config_entry.options
+        self.enable_mac_discovery = config_entry.data.get("enable_mac_discovery", True)
+        self.subnet = config_entry.data["subnet"]
+        self.scanner = Scanner(self.subnet, use_mac_mock=not self.enable_mac_discovery)
+
         super().__init__()
 
     async def async_step_init(self, user_input=None):
@@ -109,16 +114,20 @@ class DeviceOptionsFlowHandler(config_entries.OptionsFlow):
         return self.async_show_progress_done(next_step_id="discovery_done")
 
     async def discover_devices(self):
-        subnet = self.config_entry.data.get("subnet")
-        logger.info(f'discovering devices on {subnet}')
-        self.discovered_devices = await self.get_devices(subnet) or []
+        logger.info(f'discovering devices on {self.subnet}')
+        try:
+            new_devices = await self.get_devices()
+            self.discovered_devices = new_devices
+        except Exception as e:
+            logger.exception(f"unable to get devices {e}")
 
-    async def get_devices(self, subnet):
+
+    async def get_devices(self):
         new_devices = dict(self.config_entry.options)
         check_counter = 0
         devices_count = 0
 
-        for (ip, mac) in Scanner.get_devices(subnet):
+        async for (ip, mac) in self.scanner.get_devices():
             draft_device = await self.create_draft_device(ip, mac)
             new_devices[draft_device.id] = {
                 "ip": ip,
@@ -134,7 +143,6 @@ class DeviceOptionsFlowHandler(config_entries.OptionsFlow):
         return new_devices
 
     async def async_step_discovery_done(self, user_input=None):
-        # logger.info(f'{len(self.discovered_devices)} devices found.')
         devices = {
             **dict(self.config_entry.options),
             **self.discovered_devices
