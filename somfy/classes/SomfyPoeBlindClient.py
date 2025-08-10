@@ -1,15 +1,14 @@
-import ipaddress
 import logging
-import socket
+
 import urllib3
-from typing import List
+from typing import Optional, Callable
 from enum import Enum
 
-from ..dtos.somfy_objects import Status, Direction, Device
+from ..dtos.somfy_objects import Status, Device
 from ..utils.session import get_legacy_session
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("Somfy Client")
 
 SOMFY_MAC_PREFIXES = [
     "4C:C2:06",
@@ -26,6 +25,13 @@ class SomfyPoeBlindClient:
         self.ip = ip
         self.password = password
         self.on_failure = on_failure
+
+    @classmethod
+    def init_with_device(cls, device: dict, on_failure: Optional[Callable] = None):
+        if on_failure:
+            return cls(device["name"], device["ip"], device["pin"], on_failure)
+
+        return cls(device["name"], device["ip"], device["pin"], lambda: None)
 
     @staticmethod
     def _get_log_prefix(instance=None):
@@ -51,7 +57,7 @@ class SomfyPoeBlindClient:
         logger.debug("%s Authenticated. Session ID: %s", self._get_log_prefix(self), self.session.cookies["sessionId"])
 
     @staticmethod
-    def ping(ip):
+    def ping(ip) -> bool:
         session = get_legacy_session()
         try:
             response = session.post(
@@ -123,6 +129,13 @@ class SomfyPoeBlindClient:
 
         return status
 
+    def get_info(self) -> Device:
+        data = self.send_command("status.info")
+        device = Device.from_data(data['info'])
+        device.ip = self.ip
+
+        return device
+
     def down(self):
         self.send_command("move.down", priority=0)
 
@@ -140,30 +153,3 @@ class SomfyPoeBlindClient:
     
     def set_limit(self, setting: LimitSetting):
         self.send_command("settings.endlimit", end_limit=setting, mode="atcurrentposition")
-
-    @staticmethod
-    def get_possible_subnet_address():
-        hostname = socket.gethostname()
-        local_ip = socket.gethostbyname(hostname)
-        # assume /24 subnet
-        network = ipaddress.IPv4Network(local_ip + '/24', strict=False)
-
-        return str(network)
-
-    @classmethod
-    def discover_devices(cls, subnet_str=None) -> List[Device]:
-        if subnet_str is None:
-            subnet_str = cls.get_possible_subnet_address()
-
-        logger.info("%s search for devices in %s", cls._get_log_prefix(), subnet_str)
-
-        devices = []
-        # This is slower than scanning the network for actual used IPs but more reliable to find
-        # Somfy devices. Potential optimization is to retrieve existing IPs using ARP first, then
-        # scan the other IPs for any missing device with the slower method.
-        for ip in ipaddress.IPv4Network(subnet_str).hosts():
-            logger.info('checking %s', ip)
-            if ip and cls.ping(ip):
-                devices.append(Device(ip=str(ip), mac=''))
-
-        return devices

@@ -1,9 +1,10 @@
 {
-  "domain": "somfy_shades",
-  "name": "Somfy Shades",
-  "version": "1.0.0",
+  "domain": "ls_somfy_covers",
+  "name": "LS Somfy Covers",
+  "version": "2.0.0",
   "config_flow": true,
   "requirements": [],
-  "dependencies": [],
-  "codeowners": ["laertesousa"]
+  "entry_point": "config_flow",
+  "codeowners": ["@laertesousa"],
+  "documentation": "https://github.com/laertesousa/ls-somfy-covers"
 }

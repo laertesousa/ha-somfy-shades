@@ -1,0 +1,17 @@
+{
+  "options": {
+    "progress": {
+      "start_discovery": "{status}"
+    },
+    "step": {
+      "start_discovery": {
+        "title": "Discovery",
+        "description": "Status: {status}"
+      },
+      "discovery_done": {
+        "title": "Discovery Completed",
+        "description": "Status: {status}"
+      }
+    }
+  }
+}

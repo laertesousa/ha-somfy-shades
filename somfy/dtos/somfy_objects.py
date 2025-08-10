@@ -53,8 +53,36 @@ class Status:
 @dataclass
 class Device:
     ip: str
-    mac: str
+    mac: Optional[str]
+    firmware: Optional[str]
+    hardware: Optional[str]
+    hostname: Optional[str]
+    model: Optional[str]
+    name: Optional[str]
 
-    @staticmethod
-    def from_data(data: dict):
-        return Device(data['ip'], data['mac'])
+    @classmethod
+    def from_data(cls, data: dict):
+        name = data.get('name')
+        if name == "undefined":
+            name = None
+
+        return cls(
+            ip=data.get('ip'),
+            mac=data.get('mac'),
+            firmware=data.get('firmware'),
+            hardware=data.get('hardware'),
+            hostname=data.get('hostname'),
+            model=data.get('model'),
+            name=name,
+        )
+
+    def to_dict(self) -> dict:
+        return {
+            'ip': self.ip,
+            'mac': self.mac,
+            'firmware': self.firmware,
+            'hardware': self.hardware,
+            'hostname': self.hostname,
+            'model': self.model,
+            'name': self.name,
+        }

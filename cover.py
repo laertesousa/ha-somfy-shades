@@ -1,59 +1,78 @@
 import logging
 from datetime import timedelta
 from homeassistant.components.cover import CoverEntity, CoverEntityFeature
-from homeassistant.core import callback
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.event import async_track_time_interval
-from .const import DOMAIN
+from .const import DOMAIN, PLATFORMS
 
 from .somfy.classes.SomfyPoeBlindClient import SomfyPoeBlindClient
 from .somfy.dtos.somfy_objects import Direction
+from .helpers.devices import get_devices_for_entry, get_device_options, build_device_info
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("Cover")
 
 async def async_setup_entry(hass, entry, async_add_entities):
+    devices = await get_devices_for_entry(hass, entry)
+    logger.info(f"Found {len(devices)} devices")
+    for device in devices:
+        await _load_device(hass, entry, device, async_add_entities)
+
+    return True
+
+
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    # Attempt to unload platforms (e.g., cover)
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+    if unload_ok:
+        # Cancel periodic task if it was registered
+        task_removers = hass.data[DOMAIN][entry.entry_id].get("task_removers")
+        logger.info(f"Removing {len(task_removers)} tasks.")
+        for task_remover in task_removers:
+            task_remover() # This cancels the timer
+
+        # Clean up stored data
+        # hass.data[DOMAIN].pop(entry.entry_id, None)
+
+    return unload_ok
+
+
+async def _load_device(hass, entry, device, async_add_entities):
     entry_id = entry.entry_id
-    data = hass.data[DOMAIN][entry.entry_id]
+    device_options = get_device_options(entry, device.id)
+
+    if not device_options:
+        logger.info(f"{device.identifiers} has no options")
+        return
+
+    if not device_options.get("pin"):
+        logger.info(f"{device.identifiers} pin not set.")
+        return
+
+    logger.info(f"{device.identifiers} has options: {device_options}")
     async def on_failure(e):
         logger.error('Somfy callback error: %s', e)
         await hass.async_create_task(
             hass.config_entries.async_reload(entry_id)
         )
 
-    client = SomfyPoeBlindClient(data["name"], data["ip"], data["pin"], on_failure)
-    cover_entity = SomfyCover(data, client)
+    client = SomfyPoeBlindClient.init_with_device(device_options, on_failure)
+    cover_entity = SomfyCover(device, device_options, client)
+
     await hass.async_add_executor_job(client.login)
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
-        "client": client,
-        "config": data
-    }
+
+    hass.data.setdefault(DOMAIN, {}).setdefault(entry.entry_id, {})
     async_add_entities([cover_entity])
 
     async def periodic_refresh(now):
-        logger.info("Refreshing entity: %s - %s", client.ip, entry_id)
+        logger.info("Refreshing cover for device: %s - %s", client.ip, device.id)
         await hass.async_add_executor_job(client.login)
         await cover_entity.async_update()
 
     # ⏱ Set interval to 2 minutes
-    remove_listener = async_track_time_interval(hass, periodic_refresh, timedelta(minutes=1))
-    hass.data[DOMAIN][entry.entry_id]["remove_listener"] = remove_listener
-
-    return True
-
-
-# async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-#     # Attempt to unload platforms (e.g., cover)
-#     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-
-#     if unload_ok:
-#         # Cancel periodic task if it was registered
-#         remove_listener = hass.data[DOMAIN][entry.entry_id].get("remove_listener")
-#         if remove_listener:
-#             remove_listener()  # This cancels the timer
-
-#         # Clean up stored data
-#         hass.data[DOMAIN].pop(entry.entry_id, None)
-
-#     return unload_ok
+    task_remover = async_track_time_interval(hass, periodic_refresh, timedelta(minutes=2))
+    hass.data[DOMAIN][entry.entry_id].setdefault("task_removers", []).append(task_remover)
 
 
 class SomfyCover(CoverEntity):
@@ -64,32 +83,20 @@ class SomfyCover(CoverEntity):
         CoverEntityFeature.SET_POSITION
     )
 
-    def __init__(self, data, client):
+    def __init__(self, device, data, client):
+        self.device = device
         self._client = client
         self._name = data["name"]
         self._ip = data["ip"]
         self._pin = data["pin"]
-        self._id = f"somfy_cover_{self._ip.replace('.', '_')}"
-
-        # Generate a unique_id based on IP address or another unique identifier
-        self._attr_unique_id = self._id
-        self._attr_name = self._name
+        self._attr_unique_id = f"{self.device.id}_cover"
         self._position = None
         self._is_closing = None
         self._is_opening = None
 
     @property
     def device_info(self):
-        """Information about this entity/device."""
-        return {
-            "identifiers": {(DOMAIN, self._id)},
-            # If desired, the name for the device could be different to the entity
-            "name": self._name,
-            "sw_version": "0.0",
-            "model": "Somfy",
-            "manufacturer": "Clara Shades",
-            "configuration_url": f"https://{self._ip}"
-        }
+        return build_device_info(self.device, self._ip)
     
     @property
     def extra_state_attributes(self):
