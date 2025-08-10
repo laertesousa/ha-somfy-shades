@@ -309,13 +309,14 @@ class DeviceOptionsFlowHandler(config_entries.OptionsFlow):
             # Save the updated options
             return self.async_create_entry(
                 title="",
-                data={"subnet": user_input["subnet"]}
+                data={"subnet": user_input["subnet"], "enable_mac_discovery": user_input["enable_mac_discovery"]},
             )
 
         return self.async_show_form(
             step_id="edit_settings",
             data_schema=vol.Schema({
                 vol.Required("subnet", default=self.config_entry.data.get("subnet")): str,
+                vol.Required("enable_mac_discovery", default=self.config_entry.data.get("enable_mac_discovery")): bool,
             })
         )
 
