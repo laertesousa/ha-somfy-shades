@@ -7,7 +7,6 @@ blueprint:
       name: Scene Controller
       selector:
         device:
-          multiple: true
           filter:
             - model: ZEN32
     open_key:
