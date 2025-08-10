@@ -1,4 +1,3 @@
-from homeassistant.helpers.config_validation import configuration_url
 from homeassistant.helpers.device_registry import async_get as get_device_registry, DeviceInfo
 
 
