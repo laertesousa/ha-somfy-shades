@@ -7,7 +7,7 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 )
 
-logger = logging.getLogger("ha-somfy-shades")
+logger = logging.getLogger("ls_somfy_covers")
 print("Testing scanner")
 
 from somfy.classes.Scanner import Scanner

@@ -1,4 +1,4 @@
 from homeassistant.const import Platform
 
-DOMAIN = "somfy_shades"
+DOMAIN = "ls_somfy_covers"
 PLATFORMS = [Platform.COVER, Platform.SENSOR]
