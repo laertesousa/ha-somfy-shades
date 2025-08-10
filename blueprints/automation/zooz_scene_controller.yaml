@@ -7,20 +7,21 @@ blueprint:
       name: Scene Controller
       selector:
         device:
+          multiple: true
           filter:
             - model: ZEN32
     open_key:
       name: Open Button (scene key)
-      description: property_key for OPEN (e.g., "001" or "003")
-      default: "003"
+      description: property_key for OPEN (e.g., "001" or "002")
+      default: "001"
       selector:
         select:
           options: ["001", "002"]
 
     close_key:
       name: Close Button (scene key)
-      description: property_key for CLOSE (e.g., "002" or "004")
-      default: "004"
+      description: property_key for CLOSE (e.g., "003" or "004")
+      default: "003"
       selector:
         select:
           options: ["003", "004"]
